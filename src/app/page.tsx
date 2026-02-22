@@ -1,20 +1,27 @@
+import { prisma } from "@/lib/db";
 import MangaCard from "@/components/cards/MangaCard";
 
-// 1. Dummy Data (This simulates what your Database will eventually send)
-const POPULAR_MANGA = [
-  { id: "1", title: "Solo Leveling", coverUrl: "https://placehold.co/400x600/1a1a1a/white?text=Solo+Leveling", latestChapter: "Ch. 200", rating: 4.9 },
-  { id: "2", title: "One Piece", coverUrl: "https://placehold.co/400x600/darkred/white?text=One+Piece", latestChapter: "Ch. 1100", rating: 4.8 },
-  { id: "3", title: "Jujutsu Kaisen", coverUrl: "https://placehold.co/400x600/darkblue/white?text=Jujutsu+Kaisen", latestChapter: "Ch. 245", rating: 4.7 },
-  { id: "4", title: "Chainsaw Man", coverUrl: "https://placehold.co/400x600/orange/white?text=Chainsaw+Man", latestChapter: "Ch. 150", rating: 4.6 },
-  { id: "5", title: "Omniscient Reader", coverUrl: "https://placehold.co/400x600/black/white?text=Omniscient", latestChapter: "Ch. 180", rating: 4.9 },
-  { id: "6", title: "Tower of God", coverUrl: "https://placehold.co/400x600/gold/black?text=Tower+of+God", latestChapter: "Ch. 550", rating: 4.5 },
-];
+// Revalidate data every 60 seconds (Keeps the site fast but fresh)
+export const revalidate = 60;
 
-export default function Home() {
+export default async function Home() {
+  // 1. Fetch Real Data from DB
+  const popularManga = await prisma.manga.findMany({
+    take: 12,
+    orderBy: { views: 'desc' }, // Show most popular first
+    include: {
+      chapters: {
+        take: 1,
+        orderBy: { number: 'desc' },
+        select: { number: true }
+      }
+    }
+  });
+
   return (
     <main className="min-h-screen pb-20">
       
-      {/* Hero Section / Featured Banner */}
+      {/* Hero Section */}
       <section className="bg-indigo-600 py-12 text-white">
         <div className="container mx-auto px-4">
           <h1 className="text-4xl font-extrabold tracking-tight">Welcome to MangaHub</h1>
@@ -30,23 +37,33 @@ export default function Home() {
           <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
             Popular Updates
           </h2>
-          <a href="#" className="text-sm font-semibold text-indigo-600 hover:text-indigo-500">
-            View all &rarr;
-          </a>
         </div>
 
-        {/* THE GRID: This handles the layout responsiveness */}
+        {/* THE GRID */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {POPULAR_MANGA.map((manga) => (
-            <MangaCard 
-              key={manga.id}
-              id={manga.id}
-              title={manga.title}
-              coverUrl={manga.coverUrl}
-              latestChapter={manga.latestChapter}
-              rating={manga.rating}
-            />
-          ))}
+          {popularManga.map((manga) => {
+            // Calculate "Latest Chapter" string safely
+            const latestCh = manga.chapters[0] 
+              ? `Ch. ${manga.chapters[0].number}` 
+              : "New";
+
+            return (
+              <MangaCard 
+                key={manga.id}
+                id={manga.id}
+                title={manga.title}
+                coverUrl={manga.coverUrl}
+                latestChapter={latestCh}
+                rating={manga.rating}
+              />
+            );
+          })}
+
+          {popularManga.length === 0 && (
+            <div className="col-span-full text-center py-20 text-gray-500">
+              No manga found. The database might be empty.
+            </div>
+          )}
         </div>
       </section>
 
