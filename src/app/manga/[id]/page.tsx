@@ -1,30 +1,26 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { Star, Clock, BookOpen, List } from 'lucide-react';
+import { prisma } from '@/lib/db';
 
-const MOCK_MANGA_DETAIL = {
-  // ... (keep your existing MOCK_MANGA_DETAIL data exactly as it is)
-  id: "1",
-  title: "Solo Leveling",
-  author: "Chugong",
-  status: "Completed",
-  rating: 4.9,
-  views: "2.4M",
-  coverUrl: "https://placehold.co/400x600/1a1a1a/white?text=Solo+Leveling",
-  genres: ["Action", "Fantasy", "Adventure"],
-  synopsis: "Ten years ago, 'the Gate' appeared...",
-  chapters: [
-    { id: "c200", number: "200", title: "The Final Battle", date: "2 days ago" },
-    { id: "c1", number: "1", title: "The Weakest Hunter", date: "3 years ago" },
-  ]
-};
-
-// 1. ADD 'async' and type params as a Promise
 export default async function MangaDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  // 2. AWAIT the params to unwrap them safely
-  const resolvedParams = await params;
-  const mangaId = resolvedParams.id;
+  const { id } = await params;
   
-  const manga = MOCK_MANGA_DETAIL;
+  // 1. Fetch Manga + All Chapters (Sorted by newest)
+  const manga = await prisma.manga.findUnique({
+    where: { id },
+    include: {
+      chapters: {
+        orderBy: { number: 'desc' }
+      }
+    }
+  });
+
+  if (!manga) return notFound();
+
+  // Get the first chapter ID for the "Start Reading" button
+  // Since we sorted desc, the "first" chapter is actually at the end of the array
+  const firstChapter = manga.chapters[manga.chapters.length - 1];
 
   return (
     <main className="min-h-screen py-8">
@@ -35,16 +31,22 @@ export default async function MangaDetailsPage({ params }: { params: Promise<{ i
           
           {/* Left Column: Cover Image */}
           <div className="w-full md:w-1/3 lg:w-1/4 shrink-0">
-            <div className="aspect-[2/3] w-full overflow-hidden rounded-xl shadow-lg">
+            <div className="aspect-[2/3] w-full overflow-hidden rounded-xl shadow-lg relative">
               <img 
                 src={manga.coverUrl} 
                 alt={manga.title} 
                 className="h-full w-full object-cover"
               />
             </div>
-            <button className="mt-4 w-full rounded-md bg-indigo-600 py-3 font-semibold text-white transition-colors hover:bg-indigo-700">
-              Start Reading Ch. 1
-            </button>
+            
+            {firstChapter && (
+               <Link 
+                 href={`/manga/${manga.id}/chapter/${firstChapter.id}`}
+                 className="mt-4 block w-full rounded-md bg-indigo-600 py-3 text-center font-semibold text-white transition-colors hover:bg-indigo-700"
+               >
+                 Start Reading Ch. {firstChapter.number}
+               </Link>
+            )}
           </div>
 
           {/* Right Column: Manga Details */}
@@ -81,8 +83,8 @@ export default async function MangaDetailsPage({ params }: { params: Promise<{ i
             {/* Synopsis */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Synopsis</h3>
-              <p className="leading-relaxed text-gray-700 dark:text-gray-300">
-                {manga.synopsis}
+              <p className="leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                {manga.description}
               </p>
             </div>
           </div>
@@ -99,8 +101,7 @@ export default async function MangaDetailsPage({ params }: { params: Promise<{ i
             {manga.chapters.map((chapter) => (
               <Link 
                 key={chapter.id}
-                // 3. USE the unwrapped mangaId variable here!
-                href={`/manga/${mangaId}/chapter/${chapter.id}`}
+                href={`/manga/${manga.id}/chapter/${chapter.id}`}
                 className="flex items-center justify-between rounded-lg border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 <div>
@@ -112,10 +113,14 @@ export default async function MangaDetailsPage({ params }: { params: Promise<{ i
                   )}
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {chapter.date}
+                  {new Date(chapter.createdAt).toLocaleDateString()}
                 </span>
               </Link>
             ))}
+            
+            {manga.chapters.length === 0 && (
+                <p className="text-gray-500 italic">No chapters uploaded yet.</p>
+            )}
           </div>
         </div>
 

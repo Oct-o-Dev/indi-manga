@@ -1,0 +1,44 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // url is in prisma.config.ts
+}
+
+model Manga {
+  id          String   @id @default(uuid())
+  title       String
+  slug        String   @unique
+  description String   @db.Text
+  coverUrl    String
+  author      String
+  status      String   @default("Ongoing")
+  
+  // New Fields for better data
+  releaseYear Int      @default(2024)
+  rating      Float    @default(0)
+  genres      String[] // Supports multiple genres like ["Action", "Fantasy"]
+
+  chapters    Chapter[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  views       Int      @default(0)
+}
+
+model Chapter {
+  id        String   @id @default(uuid())
+  number    Float
+  title     String?
+  pages     String[]
+  
+  mangaId   String
+  manga     Manga    @relation(fields: [mangaId], references: [id])
+  
+  createdAt DateTime @default(now())
+
+  @@unique([mangaId, number])
+}
